@@ -54,6 +54,11 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// ===== Home =====
+app.get('/', (req, res) => {
+  res.status(200).json({ success: true, message: 'Clinic Booking API is running 🚀' });
+});
+
 // ===== Health Check =====
 app.get('/health', (req, res) => {
   res.status(200).json({
