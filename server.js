@@ -19,21 +19,29 @@ app.use(helmet({
 
 // ===== CORS =====
 const allowedOrigins = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',')
+  ? process.env.FRONTEND_URL.split(',').map(s => s.trim())
   : [];
 
-app.use(cors({
+console.log('🔒 Allowed CORS origins:', allowedOrigins);
+
+const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
       callback(null, true);
     } else if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.log('❌ CORS blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // ===== Rate Limiting =====
 const limiter = rateLimit({
