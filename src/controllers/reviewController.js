@@ -42,7 +42,7 @@ exports.createReview = async (req, res) => {
 
       return res.status(201).json({
         status: 'success',
-        message: 'Review submitted successfully. It will be visible after admin approval.',
+        message: 'Review submitted successfully.',
         data: newReview,
       });
     }
