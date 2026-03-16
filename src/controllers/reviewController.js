@@ -81,12 +81,10 @@ exports.getDoctorReviews = async (req, res) => {
       });
     }
 
-    const verifiedReviews = doctor.reviews.filter(review => review.isVerified === true);
-
     res.status(200).json({
       status: 'success',
-      results: verifiedReviews.length,
-      data: verifiedReviews,
+      results: doctor.reviews.length,
+      data: doctor.reviews,
     });
   } catch (error) {
     res.status(500).json({
