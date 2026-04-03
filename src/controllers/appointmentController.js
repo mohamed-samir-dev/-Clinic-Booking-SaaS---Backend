@@ -23,13 +23,6 @@ exports.createAppointment = async (req, res) => {
       return res.status(404).json({ message: 'Doctor not found' });
     }
 
-    const clinic = await require('../models/Clinic').findById(doctor.clinicId);
-    if (!clinic || !clinic.businessId) {
-      return res.status(400).json({ message: 'Business ID not found for this doctor' });
-    }
-
-    const businessId = clinic.businessId;
-
     let patientId = null;
     let finalGuestId = guestId;
 
@@ -87,7 +80,6 @@ exports.createAppointment = async (req, res) => {
     }
 
     const appointmentPayload = {
-      businessId,
       patientId,
       doctorId,
       appointmentDate,

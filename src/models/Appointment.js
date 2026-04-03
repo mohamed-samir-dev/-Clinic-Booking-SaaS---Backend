@@ -2,13 +2,6 @@ const mongoose = require('mongoose');
 
 const appointmentSchema = new mongoose.Schema(
   {
-    businessId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Business',
-      required: [true, 'Business ID is required'],
-      index: true,
-    },
-
     patientId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Patient',
@@ -122,19 +115,8 @@ const appointmentSchema = new mongoose.Schema(
   }
 );
 
-appointmentSchema.index({ businessId: 1, appointmentDate: 1 });
-appointmentSchema.index({ businessId: 1, doctorId: 1, appointmentDate: 1 });
-appointmentSchema.index({ businessId: 1, patientId: 1, appointmentDate: 1 });
-appointmentSchema.index({ businessId: 1, status: 1 });
 appointmentSchema.index({ doctorId: 1, patientId: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ doctorId: 1, guestId: 1, appointmentDate: 1, status: 1 });
-
-appointmentSchema.statics.findByBusiness = function (businessId, filters = {}) {
-  return this.find({ businessId, ...filters })
-    .populate('patientId', 'name email phone _id')
-    .populate('doctorId', 'name specialization')
-    .sort({ appointmentDate: 1, startTime: 1 });
-};
 
 appointmentSchema.statics.findByDoctor = function (doctorId, date) {
   const query = { doctorId };

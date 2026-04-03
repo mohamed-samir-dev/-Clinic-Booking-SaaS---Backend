@@ -53,33 +53,26 @@ exports.getDashboard = async (req, res) => {
     // Fetch clinics first to get their IDs (exclude parent clinic)
     const PARENT_CLINIC_ID = '69a5a379e12ec0951afb560e';
     const clinics = await Clinic.find({ 
-      businessId: owner.businessId,
       _id: { $ne: PARENT_CLINIC_ID }
     });
     const clinicIds = clinics.map(c => c._id);
 
-    // Fetch all data
     const [managers, doctors, patients] = await Promise.all([
-      Manager.find({ businessId: owner.businessId }),
+      Manager.find({}),
       Doctor.find({ clinicId: { $in: clinicIds } }),
-      Patient.find({}), // Patients don't have businessId, get all
+      Patient.find({}),
     ]);
 
-    // Fetch appointments filtered by date range
     const appointments = await Appointment.find({
-      businessId: owner.businessId,
       appointmentDate: { $gte: fromDate, $lte: toDate }
     });
 
-// Calculate previous period for comparison
     const periodDays = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24));
     const prevFromDate = new Date(fromDate);
     prevFromDate.setDate(prevFromDate.getDate() - periodDays);
     const prevToDate = new Date(fromDate);
 
-    // Fetch previous period data for comparison
     const prevAppointments = await Appointment.find({
-      businessId: owner.businessId,
       appointmentDate: { $gte: prevFromDate, $lt: prevToDate },
     });
 
@@ -240,12 +233,12 @@ exports.getClinics = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const clinics = await Clinic.find({ businessId: owner.businessId, isActive: true })
+    const clinics = await Clinic.find({ isActive: true })
       .sort({ createdAt: -1 });
 
-    const managers = await Manager.find({ businessId: owner.businessId });
+    const managers = await Manager.find({});
     const doctors = await Doctor.find({});
-    const appointments = await Appointment.find({ businessId: owner.businessId });
+    const appointments = await Appointment.find({});
     
     const clinicsWithData = clinics.map(clinic => {
       const manager = managers.find(m => m.clinicId && m.clinicId.toString() === clinic._id.toString());
@@ -279,13 +272,8 @@ exports.createClinic = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    if (!owner.businessId) {
-      return res.status(400).json({ message: 'Owner does not have a business ID' });
-    }
-
     const clinicData = {
       ...req.body,
-      businessId: owner.businessId,
       createdBy: req.user.id,
     };
 
@@ -308,10 +296,7 @@ exports.getClinic = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const clinic = await Clinic.findOne({ 
-      _id: req.params.id, 
-      businessId: owner.businessId 
-    });
+    const clinic = await Clinic.findById(req.params.id);
 
     if (!clinic) {
       return res.status(404).json({ message: 'Clinic not found' });
@@ -330,8 +315,8 @@ exports.updateClinic = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const clinic = await Clinic.findOneAndUpdate(
-      { _id: req.params.id, businessId: owner.businessId },
+    const clinic = await Clinic.findByIdAndUpdate(
+      req.params.id,
       req.body,
       { new: true, runValidators: true }
     );
@@ -374,15 +359,14 @@ exports.createDoctor = async (req, res) => {
       return res.status(400).json({ message: 'Clinic ID is required' });
     }
 
-    const clinic = await Clinic.findOne({ _id: clinicId, businessId: owner.businessId });
+    const clinic = await Clinic.findById(clinicId);
     if (!clinic) {
       return res.status(404).json({ message: 'Clinic not found' });
     }
 
     const doctorData = {
       ...req.body,
-      businessId: clinic.businessId,
-      clinicId: clinic._id,
+      clinicId,
       createdBy: req.user.id,
     };
 
@@ -498,7 +482,7 @@ exports.getManagers = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const managers = await Manager.find({ businessId: owner.businessId })
+    const managers = await Manager.find({})
       .populate('clinicId', 'name')
       .sort({ createdAt: -1 });
 
@@ -515,10 +499,7 @@ exports.getManager = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const manager = await Manager.findOne({
-      _id: req.params.id,
-      businessId: owner.businessId,
-    }).populate('clinicId', 'name');
+    const manager = await Manager.findById(req.params.id).populate('clinicId', 'name');
 
     if (!manager) {
       return res.status(404).json({ message: 'Manager not found' });
@@ -541,14 +522,13 @@ exports.createManager = async (req, res) => {
 
     // Validate clinic if provided
     if (clinicId) {
-      const clinic = await Clinic.findOne({ _id: clinicId, businessId: owner.businessId });
+      const clinic = await Clinic.findById(clinicId);
       if (!clinic) {
         return res.status(404).json({ message: 'Clinic not found' });
       }
     }
 
     const managerData = {
-      businessId: owner.businessId,
       name,
       email,
       phone,
@@ -591,13 +571,13 @@ exports.updateManager = async (req, res) => {
 
     // Validate clinic if provided
     if (clinicId) {
-      const clinic = await Clinic.findOne({ _id: clinicId, businessId: owner.businessId });
+      const clinic = await Clinic.findById(clinicId);
       if (!clinic) {
         return res.status(404).json({ message: 'Clinic not found' });
       }
     }
 
-    const manager = await Manager.findOne({ _id: req.params.id, businessId: owner.businessId });
+    const manager = await Manager.findById(req.params.id);
     if (!manager) {
       return res.status(404).json({ message: 'Manager not found' });
     }
@@ -636,10 +616,7 @@ exports.deleteManager = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const manager = await Manager.findOneAndDelete({
-      _id: req.params.id,
-      businessId: owner.businessId,
-    });
+    const manager = await Manager.findByIdAndDelete(req.params.id);
 
     if (!manager) {
       return res.status(404).json({ message: 'Manager not found' });
