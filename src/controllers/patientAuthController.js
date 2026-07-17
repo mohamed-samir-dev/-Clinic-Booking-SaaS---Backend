@@ -98,6 +98,13 @@ exports.patientLogin = async (req, res) => {
       });
     }
 
+    if (!patient.passwordHash) {
+      return res.status(401).json({
+        success: false,
+        message: 'This account uses Google sign-in. Please login with Google.'
+      });
+    }
+
     const isPasswordCorrect = await patient.comparePassword(password);
 
     if (!isPasswordCorrect) {
