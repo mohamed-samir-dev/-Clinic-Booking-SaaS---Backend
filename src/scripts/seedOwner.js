@@ -30,7 +30,7 @@ const seedOwner = async () => {
 
   console.log('✅ Owner created successfully');
   console.log('📧 Email   :', owner.email);
-  console.log('🔑 Password:', password);
+  console.log('🔑 Password: [hidden for security]');
 
   process.exit(0);
 };

@@ -216,12 +216,7 @@ exports.getDashboard = async (req, res) => {
 
 exports.getClinics = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
-    const clinics = await Clinic.find({ isActive: true }).sort({ createdAt: -1 });
+    const clinics = await Clinic.find({}).sort({ createdAt: -1 });
     const clinicIds = clinics.map(c => c._id);
 
     const [managers, doctors, appointmentStats] = await Promise.all([
@@ -280,11 +275,6 @@ exports.getClinics = async (req, res) => {
 
 exports.createClinic = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const clinicData = {
       ...req.body,
       createdBy: req.user.id,
@@ -304,11 +294,6 @@ exports.createClinic = async (req, res) => {
 
 exports.getClinic = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const clinic = await Clinic.findById(req.params.id);
 
     if (!clinic) {
@@ -323,11 +308,6 @@ exports.getClinic = async (req, res) => {
 
 exports.updateClinic = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const clinic = await Clinic.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -362,11 +342,6 @@ exports.getDoctors = async (req, res) => {
 
 exports.createDoctor = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const { clinicId } = req.body;
     if (!clinicId) {
       return res.status(400).json({ message: 'Clinic ID is required' });
@@ -399,11 +374,6 @@ exports.createDoctor = async (req, res) => {
 
 exports.updateDoctor = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const doctor = await Doctor.findById(req.params.id).select('+auth.passwordHash');
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
@@ -433,11 +403,6 @@ exports.updateDoctor = async (req, res) => {
 
 exports.deleteDoctor = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const doctor = await Doctor.findByIdAndDelete(req.params.id);
 
     if (!doctor) {
@@ -453,6 +418,17 @@ exports.deleteDoctor = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const { name, email, password, phone, profileImage } = req.body;
+
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ message: 'Invalid email address' });
+      }
+    }
+
+    if (password && password.trim().length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
     
     const owner = await Owner.findById(req.user.id);
     
@@ -490,11 +466,6 @@ exports.updateProfile = async (req, res) => {
 // Manager Management
 exports.getManagers = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const managers = await Manager.find({})
       .populate('clinicId', 'name')
       .sort({ createdAt: -1 });
@@ -507,11 +478,6 @@ exports.getManagers = async (req, res) => {
 
 exports.getManager = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const manager = await Manager.findById(req.params.id).populate('clinicId', 'name');
 
     if (!manager) {
@@ -526,12 +492,12 @@ exports.getManager = async (req, res) => {
 
 exports.createManager = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const { name, email, phone, password, clinicId, permissions, isActive, nationalId, address } = req.body;
+
+    const owner = await Owner.findById(req.user.id);
+    if (!owner || !owner.businessId) {
+      return res.status(400).json({ message: 'Owner business not found' });
+    }
 
     // Validate clinic if provided
     if (clinicId) {
@@ -546,6 +512,7 @@ exports.createManager = async (req, res) => {
       email,
       phone,
       passwordHash: password,
+      businessId: owner.businessId,
       clinicId: clinicId || undefined,
       permissions: permissions || {
         manageDoctors: true,
@@ -575,11 +542,6 @@ exports.createManager = async (req, res) => {
 
 exports.updateManager = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const { name, email, phone, clinicId, permissions, isActive, nationalId, address, password } = req.body;
 
     // Validate clinic if provided
@@ -624,11 +586,6 @@ exports.updateManager = async (req, res) => {
 
 exports.deleteManager = async (req, res) => {
   try {
-    const owner = await Owner.findById(req.user.id);
-    if (!owner) {
-      return res.status(404).json({ message: 'Owner not found' });
-    }
-
     const manager = await Manager.findByIdAndDelete(req.params.id);
 
     if (!manager) {
