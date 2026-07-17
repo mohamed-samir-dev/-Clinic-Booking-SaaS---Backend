@@ -33,10 +33,10 @@ exports.patientRegister = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !password || !phone) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email and password'
+        message: 'Please provide name, email, password and phone'
       });
     }
 
@@ -52,7 +52,7 @@ exports.patientRegister = async (req, res) => {
       name,
       email: email.toLowerCase(),
       passwordHash: password,
-      phone: phone || '+1234567890'
+      phone
     });
 
     const token = signToken(patient._id, 'patient');
@@ -250,23 +250,22 @@ exports.patientGoogleAuth = async (req, res) => {
       });
     }
 
-    // Patient - find or create
-    let patient = await Patient.findOne({ email: lowerEmail });
+    // Patient - find only, do not auto-create
+    const patient = await Patient.findOne({ email: lowerEmail });
 
-    if (patient) {
-      if (!patient.googleId) {
-        patient.googleId = googleId;
-        patient.authProvider = 'google';
-        await patient.save({ validateModifiedOnly: true });
-      }
-    } else {
-      patient = await Patient.create({
-        name,
-        email: lowerEmail,
-        googleId,
-        authProvider: 'google',
-        phone: '+0000000000',
+    if (!patient) {
+      return res.status(404).json({
+        success: false,
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'No account found with this email. Please register first.',
+        messageAr: 'لا يوجد حساب بهذا البريد الإلكتروني. يرجى التسجيل أولاً.',
       });
+    }
+
+    if (!patient.googleId) {
+      patient.googleId = googleId;
+      patient.authProvider = 'google';
+      await patient.save({ validateModifiedOnly: true });
     }
 
     if (!patient.isActive) {

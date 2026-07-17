@@ -6,8 +6,13 @@ const connectDB = require('../config/database');
 const seedOwner = async () => {
   await connectDB();
 
-  const email = 'owner@clinic.com';
-  const password = 'Owner@123456';
+  const email = process.env.SEED_OWNER_EMAIL || 'owner@clinic.com';
+  const password = process.env.SEED_OWNER_PASSWORD;
+
+  if (!password) {
+    console.error('❌ SEED_OWNER_PASSWORD is not set in .env');
+    process.exit(1);
+  }
 
   const existing = await Owner.findOne({ email });
   if (existing) {

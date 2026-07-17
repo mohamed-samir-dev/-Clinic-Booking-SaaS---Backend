@@ -36,6 +36,9 @@ temp/
 # Google OAuth credentials
 client_secret_*.json
 
+# Doctor credentials
+src/scripts/doctors-credentials.js
+
 # Uploads
 uploads/
 

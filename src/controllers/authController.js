@@ -36,14 +36,20 @@ exports.ownerRegister = async (req, res) => {
       phone: phone || '',
     });
 
-    const owner = await Owner.create({
-      name,
-      email: email.toLowerCase(),
-      phone,
-      passwordHash: password,
-      businessId: business._id,
-      emailVerified: false,
-    });
+    let owner;
+    try {
+      owner = await Owner.create({
+        name,
+        email: email.toLowerCase(),
+        phone,
+        passwordHash: password,
+        businessId: business._id,
+        emailVerified: false,
+      });
+    } catch (ownerError) {
+      await Business.findByIdAndDelete(business._id);
+      throw ownerError;
+    }
 
     const token = signToken(owner._id, 'owner');
 
@@ -123,7 +129,8 @@ exports.ownerLogin = async (req, res) => {
         id: owner._id,
         name: owner.name,
         email: owner.email,
-        role: 'owner'
+        role: 'owner',
+        businessId: owner.businessId
       }
     });
   } catch (error) {

@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const ownerController = require('../controllers/ownerController');
-const { protect } = require('../middleware/auth');
+const { protect, restrictTo } = require('../middleware/auth');
 
 router.use(protect);
+router.use(restrictTo('owner'));
 
 router.get('/profile', ownerController.getProfile);
-router.get('/stats', ownerController.getStats);
 router.get('/dashboard', ownerController.getDashboard);
 router.get('/clinics', ownerController.getClinics);
 router.get('/clinics/:id', ownerController.getClinic);

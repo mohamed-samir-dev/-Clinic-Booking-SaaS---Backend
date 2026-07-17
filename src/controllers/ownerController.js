@@ -23,22 +23,6 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-exports.getStats = async (req, res) => {
-  try {
-    // Mock data - replace with actual database queries
-    const stats = {
-      totalDoctors: 12,
-      totalAppointments: 145,
-      revenue: 25000,
-      growth: 15,
-    };
-
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
 exports.getDashboard = async (req, res) => {
   try {
     const owner = await Owner.findById(req.user.id);
@@ -51,7 +35,7 @@ exports.getDashboard = async (req, res) => {
     const toDate = to ? new Date(to) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     // Fetch clinics first to get their IDs (exclude parent clinic)
-    const PARENT_CLINIC_ID = '69a5a379e12ec0951afb560e';
+    const PARENT_CLINIC_ID = process.env.MAIN_CLINIC_ID;
     const clinics = await Clinic.find({ 
       _id: { $ne: PARENT_CLINIC_ID }
     });
@@ -181,18 +165,22 @@ exports.getDashboard = async (req, res) => {
       }
     });
 
-    // Recent activity (mock for now)
-    const recentActivity = [
-      {
-        id: '1',
-        actorRole: 'Owner',
-        actorName: owner.name,
-        action: 'updated',
-        entityType: 'clinic',
-        entityName: clinics[0]?.name || 'Clinic',
-        timestamp: new Date().toISOString(),
-      },
-    ];
+    // Recent activity - last 10 appointments as activity
+    const recentAppointments = await Appointment.find({})
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .populate('doctorId', 'name')
+      .populate('patientId', 'name');
+
+    const recentActivity = recentAppointments.map((apt, i) => ({
+      id: apt._id.toString(),
+      actorRole: 'Patient',
+      actorName: apt.patientId?.name || apt.guestData?.fullName || 'Guest',
+      action: 'booked',
+      entityType: 'appointment',
+      entityName: apt.doctorId?.name?.en || apt.doctorId?.name || 'Doctor',
+      timestamp: apt.createdAt.toISOString(),
+    }));
 
     const dashboardData = {
       kpis: {
@@ -233,29 +221,54 @@ exports.getClinics = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const clinics = await Clinic.find({ isActive: true })
-      .sort({ createdAt: -1 });
+    const clinics = await Clinic.find({ isActive: true }).sort({ createdAt: -1 });
+    const clinicIds = clinics.map(c => c._id);
 
-    const managers = await Manager.find({});
-    const doctors = await Doctor.find({});
-    const appointments = await Appointment.find({});
-    
+    const [managers, doctors, appointmentStats] = await Promise.all([
+      Manager.find({ clinicId: { $in: clinicIds } }),
+      Doctor.find({ clinicId: { $in: clinicIds } }).select('_id clinicId'),
+      Appointment.aggregate([
+        {
+          $lookup: {
+            from: 'doctors',
+            localField: 'doctorId',
+            foreignField: '_id',
+            as: 'doctor'
+          }
+        },
+        { $unwind: '$doctor' },
+        { $match: { 'doctor.clinicId': { $in: clinicIds } } },
+        {
+          $group: {
+            _id: '$doctor.clinicId',
+            appointments: { $sum: 1 },
+            patients: { $addToSet: '$patientId' }
+          }
+        }
+      ])
+    ]);
+
+    const appointmentMap = {};
+    appointmentStats.forEach(s => {
+      appointmentMap[s._id.toString()] = {
+        appointments: s.appointments,
+        patients: s.patients.filter(Boolean).length
+      };
+    });
+
     const clinicsWithData = clinics.map(clinic => {
-      const manager = managers.find(m => m.clinicId && m.clinicId.toString() === clinic._id.toString());
-      const clinicDoctors = doctors.filter(d => d.clinicId && d.clinicId.toString() === clinic._id.toString());
-      const clinicAppointments = appointments.filter(a => {
-        const doctor = doctors.find(d => d._id.toString() === a.doctorId?.toString());
-        return doctor && doctor.clinicId?.toString() === clinic._id.toString();
-      });
-      const uniquePatients = [...new Set(clinicAppointments.map(a => a.patientId?.toString()).filter(Boolean))];
-      
+      const id = clinic._id.toString();
+      const manager = managers.find(m => m.clinicId?.toString() === id);
+      const clinicDoctors = doctors.filter(d => d.clinicId?.toString() === id);
+      const stats = appointmentMap[id] || { appointments: 0, patients: 0 };
+
       return {
         ...clinic.toObject(),
         manager: manager ? manager.name : null,
         managerId: manager ? manager._id : null,
         doctors: clinicDoctors.length,
-        patients: uniquePatients.length,
-        appointments: clinicAppointments.length,
+        patients: stats.patients,
+        appointments: stats.appointments,
       };
     });
 
@@ -391,23 +404,23 @@ exports.updateDoctor = async (req, res) => {
       return res.status(404).json({ message: 'Owner not found' });
     }
 
-    const updateData = { ...req.body };
-    
-    // إذا تم إرسال كلمة مرور جديدة، نضعها في auth.passwordHash
-    if (updateData.password && updateData.password.trim()) {
-      updateData['auth.passwordHash'] = updateData.password;
-      delete updateData.password;
-    }
-
-    const doctor = await Doctor.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    );
-
+    const doctor = await Doctor.findById(req.params.id).select('+auth.passwordHash');
     if (!doctor) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
+
+    const { password, ...updateData } = req.body;
+
+    // Apply all non-password fields
+    Object.assign(doctor, updateData);
+
+    // إذا تم إرسال كلمة مرور جديدة، نضعها في auth.passwordHash ليتم تشفيرها بالـ pre-save middleware
+    if (password && password.trim()) {
+      if (!doctor.auth) doctor.auth = {};
+      doctor.auth.passwordHash = password;
+    }
+
+    await doctor.save();
 
     res.json({
       message: 'Doctor updated successfully',
@@ -630,7 +643,7 @@ exports.deleteManager = async (req, res) => {
 
 exports.getMainClinic = async (req, res) => {
   try {
-    const MAIN_CLINIC_ID = '69a5a379e12ec0951afb560e';
+    const MAIN_CLINIC_ID = process.env.MAIN_CLINIC_ID;
     const clinic = await Clinic.findById(MAIN_CLINIC_ID);
 
     if (!clinic) {
@@ -645,7 +658,7 @@ exports.getMainClinic = async (req, res) => {
 
 exports.updateMainClinic = async (req, res) => {
   try {
-    const MAIN_CLINIC_ID = '69a5a379e12ec0951afb560e';
+    const MAIN_CLINIC_ID = process.env.MAIN_CLINIC_ID;
     const clinic = await Clinic.findByIdAndUpdate(
       MAIN_CLINIC_ID,
       req.body,

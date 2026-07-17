@@ -11,6 +11,10 @@ exports.getProfile = async (req, res) => {
   try {
     const manager = await Manager.findById(req.user.id).populate('clinicId', 'name');
     
+    if (!manager) {
+      return res.status(404).json({ message: 'Manager not found' });
+    }
+
     res.json({
       name: manager.name,
       profileImage: manager.profileImage || null,
@@ -411,6 +415,36 @@ exports.getDoctors = async (req, res) => {
       appointmentMap[apt._id.toString()] = apt.count;
     });
 
+    // Get all-time stats per doctor in one aggregate query
+    const doctorStats = await Appointment.aggregate([
+      { $match: { doctorId: { $in: doctorIds } } },
+      {
+        $group: {
+          _id: '$doctorId',
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          noShow: { $sum: { $cond: [{ $eq: ['$status', 'no-show'] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    const statsMap = {};
+    doctorStats.forEach(s => {
+      statsMap[s._id.toString()] = {
+        total: s.total,
+        completed: s.completed,
+        noShowRate: s.total > 0 ? Math.round((s.noShow / s.total) * 100) : 0
+      };
+    });
+
+    // Attach stats to doctors
+    doctors.forEach(doc => {
+      const s = statsMap[doc._id.toString()] || { total: 0, completed: 0, noShowRate: 0 };
+      doc._totalAppointments = s.total;
+      doc._completedAppointments = s.completed;
+      doc._noShowRate = s.noShowRate;
+    });
+
     // Calculate stats
     const now = new Date();
     const currentDay = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][now.getDay()];
@@ -444,20 +478,6 @@ exports.getDoctors = async (req, res) => {
         status = 'available';
       }
       
-      // Get real statistics from database
-      const totalAppointments = await Appointment.countDocuments({ doctorId: doc._id });
-      const completedAppointments = await Appointment.countDocuments({ 
-        doctorId: doc._id, 
-        status: 'completed' 
-      });
-      const noShowAppointments = await Appointment.countDocuments({ 
-        doctorId: doc._id, 
-        status: 'no-show' 
-      });
-      const noShowRate = totalAppointments > 0 
-        ? Math.round((noShowAppointments / totalAppointments) * 100) 
-        : 0;
-      
       return {
         _id: doc._id,
         name: doc.name,
@@ -470,9 +490,9 @@ exports.getDoctors = async (req, res) => {
         email: doc.email,
         bio: doc.bio?.en || doc.bio,
         image: doc.photoUrl || null,
-        totalAppointments,
-        completedAppointments,
-        noShowRate,
+        totalAppointments: doc._totalAppointments || 0,
+        completedAppointments: doc._completedAppointments || 0,
+        noShowRate: doc._noShowRate || 0,
         schedule: doc.availability?.map(a => ({
           day: a.day.charAt(0).toUpperCase() + a.day.slice(1),
           startTime: a.slots?.[0]?.from || '',
@@ -700,24 +720,51 @@ exports.getPatients = async (req, res) => {
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit));
 
-    // Get appointment statistics for each patient
-    const patientsWithStats = await Promise.all(patients.map(async (patient) => {
-      const totalVisits = await Appointment.countDocuments({ patientId: patient._id });
-      const lastAppointment = await Appointment.findOne({ patientId: patient._id })
-        .sort({ appointmentDate: -1 })
-        .select('appointmentDate');
-      
-      const completedVisits = await Appointment.countDocuments({ 
-        patientId: patient._id, 
-        status: 'completed' 
-      });
-      
-      const upcomingVisits = await Appointment.countDocuments({ 
-        patientId: patient._id, 
-        status: { $in: ['pending', 'confirmed'] },
-        appointmentDate: { $gte: new Date() }
-      });
+    // Get appointment statistics for each patient using aggregate
+    const patientIds = patients.map(p => p._id);
 
+    const appointmentAggregates = await Appointment.aggregate([
+      { $match: { patientId: { $in: patientIds } } },
+      {
+        $group: {
+          _id: '$patientId',
+          totalVisits: { $sum: 1 },
+          completedVisits: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          lastAppointmentDate: { $max: '$appointmentDate' }
+        }
+      }
+    ]);
+
+    const upcomingAggregates = await Appointment.aggregate([
+      {
+        $match: {
+          patientId: { $in: patientIds },
+          status: { $in: ['pending', 'confirmed'] },
+          appointmentDate: { $gte: new Date() }
+        }
+      },
+      { $group: { _id: '$patientId', upcomingVisits: { $sum: 1 } } }
+    ]);
+
+    const statsMap = {};
+    appointmentAggregates.forEach(s => {
+      statsMap[s._id.toString()] = {
+        totalVisits: s.totalVisits,
+        completedVisits: s.completedVisits,
+        lastAppointment: s.lastAppointmentDate || null,
+        upcomingVisits: 0
+      };
+    });
+    upcomingAggregates.forEach(s => {
+      if (statsMap[s._id.toString()]) {
+        statsMap[s._id.toString()].upcomingVisits = s.upcomingVisits;
+      } else {
+        statsMap[s._id.toString()] = { totalVisits: 0, completedVisits: 0, lastAppointment: null, upcomingVisits: s.upcomingVisits };
+      }
+    });
+
+    const patientsWithStats = patients.map(patient => {
+      const s = statsMap[patient._id.toString()] || { totalVisits: 0, completedVisits: 0, lastAppointment: null, upcomingVisits: 0 };
       return {
         _id: patient._id,
         name: patient.name,
@@ -738,14 +785,14 @@ exports.getPatients = async (req, res) => {
         isActive: patient.isActive,
         emailVerified: patient.emailVerified,
         lastLoginAt: patient.lastLoginAt,
-        lastAppointment: lastAppointment?.appointmentDate || null,
-        totalVisits,
-        completedVisits,
-        upcomingVisits,
+        lastAppointment: s.lastAppointment,
+        totalVisits: s.totalVisits,
+        completedVisits: s.completedVisits,
+        upcomingVisits: s.upcomingVisits,
         registeredAt: patient.createdAt,
         updatedAt: patient.updatedAt
       };
-    }));
+    });
 
     // Calculate stats correctly
     const totalPatients = total;
@@ -1263,6 +1310,19 @@ exports.createBlockedSlot = async (req, res) => {
 // Delete Blocked Slot
 exports.deleteBlockedSlot = async (req, res) => {
   try {
+    const manager = await Manager.findById(req.user.id);
+    const clinicDoctors = await Doctor.find({ clinicId: manager.clinicId }).select('_id');
+    const clinicDoctorIds = clinicDoctors.map(d => d._id.toString());
+
+    const slot = await BlockedSlot.findById(req.params.id);
+    if (!slot) {
+      return res.status(404).json({ message: 'Blocked slot not found' });
+    }
+
+    if (!clinicDoctorIds.includes(slot.doctorId.toString())) {
+      return res.status(403).json({ message: 'Unauthorized: slot does not belong to your clinic' });
+    }
+
     await BlockedSlot.findByIdAndDelete(req.params.id);
     res.json({ message: 'Blocked slot removed successfully' });
   } catch (error) {

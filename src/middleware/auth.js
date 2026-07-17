@@ -64,7 +64,15 @@ exports.protect = async (req, res, next) => {
       });
     }
 
-    req.user = { ...user.toObject(), id: decoded.id, role };
+    req.user = {
+      id: decoded.id,
+      role,
+      name: user.name,
+      email: user.email,
+      businessId: user.businessId || null,
+      clinicId: user.clinicId || null,
+      isActive: user.isActive,
+    };
     req.businessId = user.businessId || null;
     next();
   } catch (error) {
