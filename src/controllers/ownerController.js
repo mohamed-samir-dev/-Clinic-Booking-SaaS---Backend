@@ -494,9 +494,17 @@ exports.createManager = async (req, res) => {
   try {
     const { name, email, phone, password, clinicId, permissions, isActive, nationalId, address } = req.body;
 
+    // Resolve businessId: prefer owner's, fall back to first Business doc
     const owner = await Owner.findById(req.user.id);
-    if (!owner || !owner.businessId) {
-      return res.status(400).json({ message: 'Owner business not found' });
+    let businessId = owner?.businessId;
+    if (!businessId) {
+      const Business = require('../models/Business');
+      let business = await Business.findOne();
+      if (!business) {
+        business = await Business.create({ name: 'Default Business', email: owner.email });
+      }
+      businessId = business._id;
+      await Owner.findByIdAndUpdate(req.user.id, { businessId });
     }
 
     // Validate clinic if provided
@@ -512,7 +520,7 @@ exports.createManager = async (req, res) => {
       email,
       phone,
       passwordHash: password,
-      businessId: owner.businessId,
+      businessId,
       clinicId: clinicId || undefined,
       permissions: permissions || {
         manageDoctors: true,
