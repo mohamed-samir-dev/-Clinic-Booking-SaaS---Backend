@@ -228,7 +228,6 @@ exports.getPatientAppointments = async (req, res) => {
           select: 'name'
         }
       })
-      .populate('businessId', 'name')
       .sort({ appointmentDate: -1 });
 
     res.status(200).json({
