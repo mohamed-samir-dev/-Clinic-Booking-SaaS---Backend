@@ -36,11 +36,13 @@ temp/
 # Google OAuth credentials
 client_secret_*.json
 
-# Doctor credentials
-src/scripts/doctors-credentials.js
-
 # Scripts
-src/scripts/
+src/scripts/doctors-credentials.js
+src/scripts/seedDoctors.js
+src/scripts/seedOwner.js
+src/scripts/seedShifa.js
+src/scripts/shifa-clinic-seed.json
+src/scripts/updateShifaImage.js
 
 # Uploads
 uploads/
