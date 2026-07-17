@@ -39,6 +39,9 @@ client_secret_*.json
 # Doctor credentials
 src/scripts/doctors-credentials.js
 
+# Scripts
+src/scripts/
+
 # Uploads
 uploads/
 
