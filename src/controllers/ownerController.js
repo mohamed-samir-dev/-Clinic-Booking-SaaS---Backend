@@ -41,10 +41,10 @@ exports.getDashboard = async (req, res) => {
     });
     const clinicIds = clinics.map(c => c._id);
 
-    const [managers, doctors, patients] = await Promise.all([
+    const [managers, doctors, totalPatients] = await Promise.all([
       Manager.find({}),
       Doctor.find({ clinicId: { $in: clinicIds } }),
-      Patient.find({}),
+      Patient.countDocuments({}),
     ]);
 
     const appointments = await Appointment.find({
@@ -93,22 +93,21 @@ exports.getDashboard = async (req, res) => {
     const noShowAppointments = appointments.filter(a => a.status === 'no-show').length;
     const noShowRate = appointments.length > 0 ? (noShowAppointments / appointments.length) * 100 : 0;
 
-    // Generate revenue timeline
+    // Generate revenue timeline using aggregation-style grouping
+    const revenueMap = {};
+    appointments.forEach(a => {
+      if (!a.paid) return;
+      const dateStr = new Date(a.appointmentDate).toISOString().split('T')[0];
+      revenueMap[dateStr] = (revenueMap[dateStr] || 0) + (a.fee || 0);
+    });
+
     const revenueTimeline = [];
     const daysDiff = Math.ceil((toDate - fromDate) / (1000 * 60 * 60 * 24));
     for (let i = 0; i < daysDiff; i++) {
       const date = new Date(fromDate);
       date.setDate(date.getDate() + i);
       const dateStr = date.toISOString().split('T')[0];
-      
-      const dayRevenue = appointments
-        .filter(a => {
-          const aDate = new Date(a.appointmentDate).toISOString().split('T')[0];
-          return aDate === dateStr && a.paid;
-        })
-        .reduce((sum, a) => sum + (a.fee || 0), 0);
-      
-      revenueTimeline.push({ date: dateStr, revenue: dayRevenue });
+      revenueTimeline.push({ date: dateStr, revenue: revenueMap[dateStr] || 0 });
     }
 
     // Revenue by clinic (parent clinic already excluded)
@@ -187,7 +186,7 @@ exports.getDashboard = async (req, res) => {
         totalClinics: clinics.length,
         totalManagers: managers.length,
         totalDoctors: doctors.length,
-        totalPatients: patients.length,
+        totalPatients,
         totalAppointments: appointments.length,
         totalRevenue,
         careSyncRevenue: parseFloat(careSyncRevenue.toFixed(2)),
@@ -216,7 +215,8 @@ exports.getDashboard = async (req, res) => {
 
 exports.getClinics = async (req, res) => {
   try {
-    const clinics = await Clinic.find({}).sort({ createdAt: -1 });
+    const PARENT_CLINIC_ID = process.env.MAIN_CLINIC_ID;
+    const clinics = await Clinic.find({ _id: { $ne: PARENT_CLINIC_ID } }).sort({ createdAt: -1 });
     const clinicIds = clinics.map(c => c._id);
 
     const [managers, doctors, appointmentStats] = await Promise.all([
@@ -275,8 +275,13 @@ exports.getClinics = async (req, res) => {
 
 exports.createClinic = async (req, res) => {
   try {
+    if (!req.body.name?.en?.trim() || !req.body.name?.ar?.trim()) {
+      return res.status(400).json({ message: 'Clinic name in both English and Arabic is required' });
+    }
+
     const clinicData = {
       ...req.body,
+      type: req.body.type || 'branch',
       createdBy: req.user.id,
     };
 
@@ -288,6 +293,10 @@ exports.createClinic = async (req, res) => {
     });
   } catch (error) {
     console.error('Create clinic error:', error);
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({ message: messages.join(', ') });
+    }
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -308,9 +317,18 @@ exports.getClinic = async (req, res) => {
 
 exports.updateClinic = async (req, res) => {
   try {
+    const { name, brief, description, address, phone, email, logo, images,
+      location, workingHours, facilities, capacity, bookingSettings, socialMedia, isActive } = req.body;
+
+    const allowedUpdate = { name, brief, description, address, phone, email, logo, images,
+      location, workingHours, facilities, capacity, bookingSettings, socialMedia, isActive };
+
+    // Remove undefined keys
+    Object.keys(allowedUpdate).forEach(k => allowedUpdate[k] === undefined && delete allowedUpdate[k]);
+
     const clinic = await Clinic.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      allowedUpdate,
       { new: true, runValidators: true }
     );
 
@@ -318,10 +336,23 @@ exports.updateClinic = async (req, res) => {
       return res.status(404).json({ message: 'Clinic not found' });
     }
 
-    res.json({
-      message: 'Clinic updated successfully',
-      clinic,
-    });
+    res.json({ message: 'Clinic updated successfully', clinic });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({ message: messages.join(', ') });
+    }
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.deleteClinic = async (req, res) => {
+  try {
+    const clinic = await Clinic.findByIdAndDelete(req.params.id);
+    if (!clinic) {
+      return res.status(404).json({ message: 'Clinic not found' });
+    }
+    res.json({ message: 'Clinic deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

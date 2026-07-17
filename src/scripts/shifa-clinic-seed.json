@@ -1,0 +1,86 @@
+{
+  "clinic": {
+    "type": "branch",
+
+    "name": {
+      "ar": "عيادة شفاء",
+      "en": "Shifa Clinic"
+    },
+
+    "brief": {
+      "ar": "عيادة شفاء – رعاية صحية متكاملة بأيدٍ متخصصة",
+      "en": "Shifa Clinic – Comprehensive healthcare with specialized hands"
+    },
+
+    "description": {
+      "ar": "عيادة شفاء هي وجهتك الصحية الأولى، نقدم خدمات طبية متكاملة في بيئة مريحة وآمنة بأحدث التقنيات وكوادر طبية متخصصة.",
+      "en": "Shifa Clinic is your first healthcare destination, offering comprehensive medical services in a comfortable and safe environment with the latest technologies and specialized medical staff."
+    },
+
+    "image": "https://i.ibb.co/CpRZy2gq/Chat-GPT-Image-Jul-17-2026-08-30-14-PM.webp",
+
+    "phone": "+966500000010",
+    "email": "shifa@caresync.com",
+    "brandColor": "#0ea5e9",
+    "timezone": "Asia/Riyadh",
+    "currency": "SAR",
+
+    "address": {
+      "ar": "شارع الملك فهد، الرياض",
+      "en": "King Fahd Road, Riyadh",
+      "country": "Saudi Arabia",
+      "city": "Riyadh",
+      "street": "King Fahd Road",
+      "lat": 24.7136,
+      "lng": 46.6753
+    },
+
+    "location": {
+      "type": "Point",
+      "coordinates": [46.6753, 24.7136]
+    },
+
+    "workingHours": {
+      "sunday":    { "isOpen": true,  "openTime": "08:00", "closeTime": "22:00" },
+      "monday":    { "isOpen": true,  "openTime": "08:00", "closeTime": "22:00" },
+      "tuesday":   { "isOpen": true,  "openTime": "08:00", "closeTime": "22:00" },
+      "wednesday": { "isOpen": true,  "openTime": "08:00", "closeTime": "22:00" },
+      "thursday":  { "isOpen": true,  "openTime": "08:00", "closeTime": "22:00" },
+      "friday":    { "isOpen": false, "openTime": null,    "closeTime": null    },
+      "saturday":  { "isOpen": true,  "openTime": "10:00", "closeTime": "20:00" }
+    },
+
+    "facilities": [
+      { "name": { "ar": "انتظار مكيف",  "en": "Air-conditioned waiting area" }, "icon": "sofa"        },
+      { "name": { "ar": "موقف سيارات",  "en": "Parking"                      }, "icon": "car"         },
+      { "name": { "ar": "واي فاي مجاني","en": "Free Wi-Fi"                   }, "icon": "wifi"        },
+      { "name": { "ar": "صيدلية داخلية","en": "In-house pharmacy"            }, "icon": "pill"        },
+      { "name": { "ar": "أشعة وتحاليل", "en": "Radiology & Lab"              }, "icon": "microscope"  }
+    ],
+
+    "capacity": {
+      "rooms": 10,
+      "doctors": 8,
+      "patientsPerDay": 80
+    },
+
+    "bookingSettings": {
+      "allowOnlineBooking": true,
+      "advanceBookingDays": 30,
+      "requiresConfirmation": false,
+      "cancellationPolicy": {
+        "ar": "يمكن إلغاء الحجز قبل 24 ساعة من الموعد دون أي رسوم.",
+        "en": "Appointments can be cancelled up to 24 hours in advance at no charge."
+      }
+    },
+
+    "socialMedia": {
+      "facebook":  "https://facebook.com/shifa.clinic",
+      "instagram": "https://instagram.com/shifa.clinic",
+      "twitter":   "https://twitter.com/shifa_clinic"
+    },
+
+    "status": "active",
+    "isActive": true
+  }
+}

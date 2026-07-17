@@ -12,6 +12,7 @@ router.get('/clinics', ownerController.getClinics);
 router.get('/clinics/:id', ownerController.getClinic);
 router.post('/clinics', ownerController.createClinic);
 router.put('/clinics/:id', ownerController.updateClinic);
+router.delete('/clinics/:id', ownerController.deleteClinic);
 router.get('/doctors', ownerController.getDoctors);
 router.post('/doctors', ownerController.createDoctor);
 router.put('/doctors/:id', ownerController.updateDoctor);

@@ -5,7 +5,7 @@ const { protect, restrictTo } = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
-    const clinics = await Clinic.find({})
+    const clinics = await Clinic.find({ type: 'branch' })
       .select('name logo address phone isActive')
       .sort({ createdAt: -1 });
     

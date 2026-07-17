@@ -13,6 +13,7 @@ router.patch('/transfer-requests/:requestId/respond', authenticateDoctor, transf
 router.post('/transfer-requests/message', authenticateDoctor, transferRequestController.sendMessageToManager);
 
 router.get('/top', doctorController.getTopDoctors);
+router.get('/by-clinic/:clinicId', doctorController.getDoctorsByClinic);
 router.get('/all', doctorController.getAllDoctorsWithFilters);
 router.get('/filters', doctorController.getFilterOptions);
 router.get('/:id/availability', doctorController.getDoctorAvailability);

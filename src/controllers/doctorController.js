@@ -90,6 +90,19 @@ exports.deleteDoctor = async (req, res) => {
   }
 };
 
+exports.getDoctorsByClinic = async (req, res) => {
+  try {
+    const { clinicId } = req.params;
+    const doctors = await Doctor.find({ clinicId, status: 'active' })
+      .select('name specialty experienceYears photoUrl isAvailableToday clinicId')
+      .sort({ ratingAvg: -1, experienceYears: -1 });
+    res.json(doctors);
+  } catch (error) {
+    console.error('getDoctorsByClinic error:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.getTopDoctors = async (req, res) => {
   try {
     const { specialty, limit = 4 } = req.query;
