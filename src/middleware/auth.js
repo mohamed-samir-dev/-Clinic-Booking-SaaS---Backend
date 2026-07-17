@@ -119,7 +119,7 @@ exports.optionalAuth = async (req, res, next) => {
     }
     
     if (user && user.isActive) {
-      req.user = { ...user.toObject(), id: decoded.id, role };
+      req.user = { id: decoded.id, role, name: user.name, email: user.email, businessId: user.businessId || null, clinicId: user.clinicId || null };
     }
 
     next();
@@ -161,7 +161,7 @@ exports.authenticateDoctor = async (req, res, next) => {
       });
     }
 
-    req.user = { ...doctor.toObject(), id: decoded.id, role: 'doctor' };
+    req.user = { id: decoded.id, role: 'doctor', name: doctor.name, email: doctor.email, clinicId: doctor.clinicId || null, businessId: doctor.businessId || null };
     next();
   } catch (error) {
     return res.status(401).json({
